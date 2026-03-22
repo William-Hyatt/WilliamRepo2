@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Floor Plan AI Auditor</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <main class="container">
+    <h1>Floor Plan AI Auditor</h1>
+    <p class="subtitle">Upload a hotel floor plan and get risk findings across circulation, safety, guestrooms, and operations.</p>
+
+    <form id="audit-form" class="card">
+      <label>
+        Country / Region (for Fire Life Safety)
+        <input type="text" name="country_or_region" placeholder="e.g., UAE, Singapore, California" required />
+      </label>
+
+      <label>
+        Floor Plan Image
+        <input type="file" name="floorplan" accept="image/*" required />
+      </label>
+
+      <button type="submit">Run Audit</button>
+    </form>
+
+    <section id="result" class="card hidden"></section>
+  </main>
+
+  <script>
+    const form = document.getElementById('audit-form');
+    const resultBox = document.getElementById('result');
+
+    function toFindingsHtml(findings = []) {
+      return findings.map((f) => `
+        <article class="finding severity-${(f.severity || 'Medium').toLowerCase()}">
+          <h4>${f.category} • ${f.severity}</h4>
+          <p><strong>Issue:</strong> ${f.issue}</p>
+          <p><strong>Impact:</strong> ${f.why_it_matters}</p>
+          <p><strong>Recommendation:</strong> ${f.recommendation}</p>
+        </article>
+      `).join('');
+    }
+
+    function toScoresHtml(scores = {}) {
+      return Object.entries(scores).map(([k,v]) => `<li><span>${k}</span><strong>${v}</strong></li>`).join('');
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const fd = new FormData(form);
+
+      resultBox.classList.remove('hidden');
+      resultBox.innerHTML = '<p>Analyzing floor plan…</p>';
+
+      const res = await fetch('/api/review', { method: 'POST', body: fd });
+      const data = await res.json();
+
+      if (!res.ok) {
+        resultBox.innerHTML = `<p class="error">${data.error || 'Audit failed.'}</p>`;
+        return;
+      }
+
+      resultBox.innerHTML = `
+        <h2>Audit Result</h2>
+        <p><strong>Risk Level:</strong> ${data.risk_level}</p>
+        <p>${data.overall_summary}</p>
+
+        <h3>Scores</h3>
+        <ul class="scores">${toScoresHtml(data.scores)}</ul>
+
+        <h3>Findings</h3>
+        <div class="findings">${toFindingsHtml(data.findings)}</div>
+
+        <h3>Next Steps</h3>
+        <ul>${(data.next_steps || []).map((s) => `<li>${s}</li>`).join('')}</ul>
+      `;
+    });
+  </script>
+</body>
+</html>
